@@ -1,104 +1,136 @@
-# **Avaliação Técnica**
-* Organização e clareza do código
-* Estruturação da arquitetura e desacoplamento
-* Boas práticas de API com FastAPI
-* Modelagem e persistência em MongoDB
-* Implementação de integração externa
-* Qualidade geral da solução, documentação e organização do projeto
+# Lead Management API
+
+API para gerenciamento de Leads desenvolvida com **Python**, **FastAPI** e **MongoDB**.
 
 ---
 
-# **Descrição do Desafio**
+## Como rodar o projeto
 
-Você deverá desenvolver uma **API para gerenciamento de Leads** utilizando **Python, FastAPI e MongoDB**, seguindo os requisitos descritos abaixo.
+### Com Docker (recomendado)
+
+```bash
+docker compose up --build
+```
+
+A API estará disponível em `http://localhost:8000`.
+
+O MongoDB é iniciado automaticamente via Docker Compose na porta `27017`.
+
+### Sem Docker (local)
+
+1. Inicie o MongoDB localmente na porta `27017`.
+2. Instale as dependências:
+
+```bash
+pip install -r requirements.txt
+```
+
+3. Execute a aplicação:
+
+```bash
+uvicorn app.main:app --reload
+```
 
 ---
 
-# **1. Funcionalidades da API**
+## Endpoints
 
-### **POST /leads**
+### POST /leads
 
-Cria um lead contendo os campos enviados pelo usuário:
+Cria um novo lead. O campo `birth_date` é preenchido automaticamente via integração externa.
 
-```
-name   (string)
-email  (string)
-phone  (string)
-```
-
-Durante o cadastro, o sistema deverá **consultar um serviço externo** (item 2) para preencher automaticamente o campo birth_date e então persistir o lead no MongoDB.
-
-### **GET /leads**
-
-Lista todos os leads cadastrados.
-
-### **GET /leads/{id}**
-
-Retorna os detalhes de um lead específico pelo seu ID.
-
----
-
-# **2. Integração Externa (Obrigatória)**
-
-Durante a criação de um lead (POST), você deverá consumir a API pública:
-
-```
-https://dummyjson.com/users/1
+```bash
+curl -X POST http://localhost:8000/leads \
+  -H "Content-Type: application/json" \
+  -d '{"name": "João Silva", "email": "joao@example.com", "phone": "+5511999999999"}'
 ```
 
-Da resposta, extraia o campo:
+Resposta (`201 Created`):
 
-```
-birthDate
-```
-
-Esse valor deve ser armazenado no documento do lead como:
-
-```
-birth_date
-```
-
-### **Regras da Integração Externa:**
-1. Em caso de falha na requisição externa, você pode:
-
-   * retornar erro amigável **ou**
-   * definir `birth_date = null`
-
-   A decisão é sua, mas deve estar documentada no README.
-
-2. O retorno do lead criado deve seguir o formato:
-
-```
+```json
 {
   "id": "...",
-  "name": "...",
-  "email": "...",
-  "phone": "...",
+  "name": "João Silva",
+  "email": "joao@example.com",
+  "phone": "+5511999999999",
   "birth_date": "1998-02-05"
 }
 ```
 
-# **3. Arquitetura Esperada**
+### GET /leads
 
-Não exigimos uma arquitetura específica, porém será bem avaliado se houver:
+Lista todos os leads cadastrados.
 
-* Separação clara entre camadas
-* Código limpo e organizado
-* Baixo acoplamento e responsabilidades bem definidas
-* Estrutura de pastas simples, clara e escalável
-* Docker configurado
+```bash
+curl http://localhost:8000/leads
+```
+
+### GET /leads/{id}
+
+Retorna um lead específico pelo seu ID.
+
+```bash
+curl http://localhost:8000/leads/{id}
+```
 
 ---
 
-# **4. Entrega**
+## Documentação interativa
 
-O repositório deve conter:
+O FastAPI gera documentação automática disponível em:
 
-* Código fonte organizado
-* Arquivo **README.md** com:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-  * Instruções claras para rodar o projeto
-  * Como iniciar o MongoDB (local ou Docker)
-  * Como testar manualmente os endpoints
-  * Explicação rápida da arquitetura adotada
-  * Comportamento esperado em caso de falha da API externa
+---
+
+## Arquitetura
+
+O projeto segue uma arquitetura em camadas com separação clara de responsabilidades:
+
+```
+app/
+├── api/            # Rotas / Controllers
+│   └── routes.py
+├── core/           # Configurações da aplicação
+│   └── config.py
+├── db/             # Conexão com o banco de dados
+│   └── mongodb.py
+├── schemas/        # Schemas Pydantic (entrada/saída)
+│   └── lead.py
+├── services/       # Lógica de negócio e integrações
+│   ├── lead_service.py
+│   └── external_api.py
+└── main.py         # Ponto de entrada da aplicação
+tests/
+└── test_leads.py   # Testes automatizados
+```
+
+- **api/**: Define os endpoints HTTP (controllers).
+- **schemas/**: Modelos Pydantic para validação de dados de entrada e formato de resposta.
+- **services/**: Contém a lógica de negócio (`lead_service.py`) e a integração com a API externa (`external_api.py`).
+- **db/**: Gerencia a conexão com o MongoDB via Motor (driver assíncrono).
+- **core/**: Configurações centralizadas (URL do banco, URL da API externa).
+
+---
+
+## Integração externa
+
+Durante a criação de um lead (`POST /leads`), o sistema consome a API pública `https://dummyjson.com/users/1` para obter o campo `birthDate`, que é armazenado como `birth_date`.
+
+### Comportamento em caso de falha da API externa
+
+Em caso de falha na requisição externa (timeout, erro HTTP, indisponibilidade), o lead é criado normalmente com `birth_date = null`. O sistema **não** retorna erro ao usuário — a falha é tratada silenciosamente para garantir que o cadastro do lead não seja bloqueado por uma dependência externa.
+
+---
+
+## Testes
+
+Para rodar os testes automatizados:
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+Os testes utilizam `mongomock-motor` para simular o MongoDB em memória e `unittest.mock` para mockar a integração externa.
